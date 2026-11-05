@@ -60,6 +60,17 @@ await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
 await cp(path.join(root, 'public'), outDir, { recursive: true });
 
+// Personalise the page shell (link previews in Telegram/WhatsApp/iMessage use these).
+const htmlEsc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const siteTitle = `${config.owner.name}’s schedule`;
+const siteDesc = config.owner.tagline || `See when ${config.owner.name} is free, busy or travelling.`;
+const indexPath = path.join(outDir, 'index.html');
+await writeFile(indexPath, (await readFile(indexPath, 'utf8')).replaceAll('__TITLE__', htmlEsc(siteTitle)).replaceAll('__DESCRIPTION__', htmlEsc(siteDesc)));
+await writeFile(
+  path.join(outDir, 'manifest.webmanifest'),
+  JSON.stringify({ name: siteTitle, short_name: config.owner.name, start_url: './', display: 'standalone', background_color: '#f6f7f9', theme_color: '#0f172a', icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' }] }),
+);
+
 const passcode = process.env.CALENDAR_PASSCODE || '';
 const feedToken = (process.env.FEED_TOKEN || '').replace(/[^A-Za-z0-9_-]/g, '');
 const ics = writeIcs(model);
@@ -111,6 +122,20 @@ function validateConfig(c) {
   for (const [d, h] of Object.entries(c.workingHours?.days || {})) {
     if (!Array.isArray(h) || h.length !== 2 || !h.every((x) => /^\d{2}:\d{2}$/.test(x)) || h[0] >= h[1]) {
       problems.push(`workingHours.days.${d} must be ["HH:MM", "HH:MM"] with start before end`);
+    }
+  }
+  for (const [k, v] of Object.entries(c.places || {})) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: v });
+    } catch {
+      problems.push(`places.${k}: "${v}" is not a valid IANA timezone`);
+    }
+  }
+  if (c.placeRule) {
+    try {
+      new RegExp(c.placeRule, 'iu');
+    } catch (e) {
+      problems.push(`invalid placeRule regex: ${e.message}`);
     }
   }
   for (const s of c.sources || []) {

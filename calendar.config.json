@@ -1,8 +1,9 @@
 {
   "owner": {
     "name": "Darien",
-    "timezone": "Europe/London",
-    "tagline": "Here's when I'm free, busy, or away. Message me to make plans!"
+    "timezone": "Asia/Singapore",
+    "tagline": "Here's when I'm free, busy, or away. Message me to make plans!",
+    "homeCity": "Singapore"
   },
   "window": {
     "pastDays": 7,
@@ -97,6 +98,10 @@
       "busyStatus": "OOF"
     }
   ],
+  "placeRule": "^\\s*📍\\s*(?:in\\s+|based in\\s+)?(?<detail>.+)$",
+  "places": {
+    "home": "Asia/Singapore"
+  },
   "sources": [
     {
       "id": "work",

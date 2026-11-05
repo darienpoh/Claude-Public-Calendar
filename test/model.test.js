@@ -8,8 +8,9 @@ import { writeIcs } from '../src/ics-writer.js';
 import { encryptJson, decryptJson } from '../src/crypto.js';
 import { zonedTimeToUtc, dateKeyInZone } from '../src/time.js';
 
-const config = JSON.parse(readFileSync(new URL('../calendar.config.json', import.meta.url), 'utf8'));
-const TZ = config.owner.timezone; // Europe/London
+const baseConfig = JSON.parse(readFileSync(new URL('../calendar.config.json', import.meta.url), 'utf8'));
+// Tests pin the home timezone so they don't depend on your personal settings.
+const config = { ...baseConfig, owner: { ...baseConfig.owner, timezone: 'Europe/London' } };
 const TODAY = '2026-11-05'; // Thursday
 
 const timed = (sourceId, summary, start, end, extra = {}) => ({
@@ -122,7 +123,7 @@ test('sample fixtures parse, including Outlook Windows timezones and recurrence'
   const work = parseIcs(readFileSync(new URL('../fixtures/work.ics', import.meta.url), 'utf8'), { from, to, sourceId: 'work' });
   const standups = work.filter((e) => e.summary.startsWith('Daily standup'));
   assert.equal(standups.length, 10);
-  assert.equal(standups[0].start.toISOString(), '2026-11-02T09:30:00.000Z');
+  assert.equal(standups[0].start.toISOString(), '2026-11-02T01:30:00.000Z'); // 09:30 Singapore
 });
 
 test('generated .ics feed is valid and sanitized', () => {
@@ -143,4 +144,31 @@ test('encryption round-trips and rejects a wrong passcode', async () => {
   assert.ok(!JSON.stringify(payload).includes('world'));
   assert.deepEqual(await decryptJson(payload, 'correct horse'), { hello: 'world' });
   await assert.rejects(decryptJson(payload, 'wrong'));
+});
+
+test('travel destination moves working hours into the local timezone', () => {
+  const m = build([
+    allDay('personal', '✈️ Tokyo', '2026-11-09', '2026-11-11'),
+    allDay('work', 'Travel to New York', '2026-11-16', '2026-11-17'),
+    allDay('personal', 'Trip: offsite #tz:Asia/Makassar', '2026-11-18', '2026-11-19'),
+  ]);
+  const tokyo = day(m, '2026-11-09');
+  assert.equal(tokyo.tz, 'Asia/Tokyo');
+  assert.equal(tokyo.place, 'Tokyo');
+  assert.equal(tokyo.work.start, '2026-11-09T00:00:00.000Z'); // 09:00 JST
+  const ny = day(m, '2026-11-16');
+  assert.equal(ny.tz, 'America/New_York');
+  assert.equal(ny.place, undefined); // from the busy-only work calendar: zone used, city not named
+  assert.equal(ny.work.start, '2026-11-16T14:00:00.000Z');
+  assert.equal(day(m, '2026-11-18').tz, 'Asia/Makassar');
+  assert.ok(!JSON.stringify(m).includes('#tz'));
+  assert.equal(day(m, '2026-11-12').tz, 'Europe/London'); // back home
+});
+
+test('📍 place events change timezone but not status', () => {
+  const m = build([allDay('personal', '📍 Bali', '2026-11-09', '2026-11-11')]);
+  assert.equal(day(m, '2026-11-09').status, 'office'); // Monday default unchanged
+  assert.equal(day(m, '2026-11-09').tz, 'Asia/Makassar');
+  assert.equal(day(m, '2026-11-09').place, 'Bali');
+  assert.equal(m.events.length, 0);
 });

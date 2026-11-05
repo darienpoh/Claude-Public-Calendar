@@ -1,4 +1,5 @@
 import { addDays, dateKeyInZone, dateRange, weekdayOf, zonedTimeToUtc } from './time.js';
+import { resolveTimezone, stripTzTag } from './places.js';
 
 /**
  * Turn raw (private) calendar events into the sanitized public model.
@@ -16,6 +17,8 @@ export function buildModel({ config, events, today, now = new Date() }) {
     ...r,
     re: r.match ? new RegExp(r.match, 'iu') : null,
   }));
+
+  const placeRe = config.placeRule ? new RegExp(config.placeRule, 'iu') : null;
 
   // 1. Working-hours windows per day (before status overrides).
   const workWindow = new Map();
@@ -51,7 +54,12 @@ export function buildModel({ config, events, today, now = new Date() }) {
       visibility = 'busy';
     }
     const title = stripTags(ev.summary, privacy);
-    const marker = matchStatus(rules, title, ev);
+    let marker = matchStatus(rules, title, ev);
+    // "📍 Bali" style events move the owner's timezone without changing their status.
+    if (!marker && placeRe) {
+      const m = title.match(placeRe);
+      if (m) marker = { status: null, detail: (m.groups?.detail || '').trim() };
+    }
     classified.push({ ev, src, visibility, title, marker });
   }
 
@@ -64,9 +72,13 @@ export function buildModel({ config, events, today, now = new Date() }) {
   for (const c of classified) {
     if (!c.marker) continue;
     const { status } = c.marker;
-    const statusCfg = config.statuses[status];
+    const statusCfg = status ? config.statuses[status] : { working: true };
     if (!statusCfg) continue;
     const detail = c.visibility === 'busy' ? '' : c.marker.detail || c.ev.location || '';
+    // Where in the world is the owner? Travel destinations set that day's timezone.
+    const tagged = [c.ev.summary, c.ev.description].filter((t) => t && t.includes('#tz:'));
+    const placeTz = resolveTimezone([...tagged, c.marker.detail, c.title, c.ev.location], config.places);
+    if (!status && !placeTz) continue;
     for (const d of coveredDays(c.ev, tz)) {
       if (!c.ev.allDay && statusCfg.working === false) {
         // A timed "off" block (e.g. afternoon leave) only flips the whole day
@@ -74,26 +86,35 @@ export function buildModel({ config, events, today, now = new Date() }) {
         const w = workWindow.get(d);
         if (!w || c.ev.start > w.start || c.ev.end < w.end) continue;
       }
-      addCandidate(d, { status, detail });
+      addCandidate(d, { status, detail, placeTz, placePublic: c.visibility !== 'busy', placeLabel: c.marker.detail });
     }
   }
 
   const dayOut = [];
   for (const d of days) {
-    const list = candidates.get(d) || [];
+    const all = candidates.get(d) || [];
+    const list = all.filter((c) => c.status);
     list.sort((a, b) => (config.statuses[b.status].priority ?? 0) - (config.statuses[a.status].priority ?? 0));
     let status = list[0]?.status ?? config.defaultLocation?.[weekdayOf(d)] ?? null;
     if (status && !config.statuses[status]) status = null;
     const detail = list[0]?.detail || '';
     const statusCfg = status ? config.statuses[status] : null;
-    let work = workWindow.get(d) || null;
+    const place = list.find((c) => c.placeTz) || all.find((c) => c.placeTz);
+    const dayTz = place?.placeTz || tz;
+    // Working hours follow the owner around: 9-6 in Tokyo while in Tokyo.
+    const hours = config.workingHours?.days?.[weekdayOf(d)];
+    let work = hours ? { start: zonedTimeToUtc(d, hours[0], dayTz), end: zonedTimeToUtc(d, hours[1], dayTz) } : null;
     if (statusCfg && statusCfg.working === false) work = null;
-    if (!work) workWindow.delete(d);
+    if (work) workWindow.set(d, work);
+    else workWindow.delete(d);
     dayOut.push({
       date: d,
       weekday: weekdayOf(d),
       status,
       detail: detail.slice(0, 80),
+      tz: dayTz,
+      // Name the city only when the event it came from is shareable.
+      ...(dayTz !== tz && place?.placePublic ? { place: (place.placeLabel || cityName(dayTz)).slice(0, 40) } : {}),
       work: work ? { start: work.start.toISOString(), end: work.end.toISOString() } : null,
     });
   }
@@ -150,6 +171,7 @@ export function buildModel({ config, events, today, now = new Date() }) {
     owner: {
       name: config.owner.name,
       timezone: tz,
+      homeCity: config.owner.homeCity || cityName(tz),
       tagline: config.owner.tagline || '',
     },
     workingLabel: config.workingHours?.label || 'Working',
@@ -165,8 +187,12 @@ export function buildModel({ config, events, today, now = new Date() }) {
   };
 }
 
+function cityName(tz) {
+  return tz.split('/').pop().replace(/_/g, ' ');
+}
+
 function stripTags(s, privacy) {
-  let t = s || '';
+  let t = stripTzTag(s);
   for (const tag of [privacy.privateTag, privacy.publicTag, privacy.hideTag]) {
     if (tag) t = t.split(tag).join('');
   }

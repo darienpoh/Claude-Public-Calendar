@@ -82,6 +82,15 @@ button, input { font: inherit; color: inherit; }
 .seg-btn:last-child { border-radius: 0 8px 8px 0; }
 .seg-btn[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
 
+.tz-pick select {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 28px 6px 10px;
+  max-width: 260px; cursor: pointer; appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.place-line { margin-top: 4px; font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now .tzdiff { display: block; font-size: .8rem; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 14px; color: var(--muted); font-size: .85rem; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
@@ -205,6 +214,9 @@ button, input { font: inherit; color: inherit; }
   .top h1 { font-size: 1.25rem; }
   .tagline { font-size: .9rem; }
   .range-label { width: 100%; margin: 4px 0 0; }
+  .tz-pick, .tz-pick select { width: 100%; max-width: none; }
+  .now .tzdiff { display: inline; margin-left: 6px; }
+  .now .tzdiff::before { content: "· "; }
   .items li { grid-template-columns: 9em 1fr; font-size: .88rem; }
   .items .time { white-space: nowrap; font-size: .8rem; padding-top: 1px; }
   .day-card { grid-template-columns: 48px 1fr; padding: 12px; }

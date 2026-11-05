@@ -4,8 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>My Schedule</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <title>__TITLE__</title>
+  <meta name="description" content="__DESCRIPTION__">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="__TITLE__">
+  <meta property="og:description" content="__DESCRIPTION__">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -47,10 +55,9 @@
           <button data-view="week" class="seg-btn">Week</button>
           <button data-view="list" class="seg-btn">List</button>
         </div>
-        <div id="tz-seg" class="seg" role="group" aria-label="Timezone" hidden>
-          <button data-tz="owner" class="seg-btn" id="tz-owner"></button>
-          <button data-tz="viewer" class="seg-btn">My time</button>
-        </div>
+        <label class="tz-pick"><span class="sr-only">Show times in</span>
+          <select id="tz-select" aria-label="Show times in timezone"></select>
+        </label>
         <button id="subscribe" class="btn" hidden>Subscribe</button>
       </div>
     </nav>

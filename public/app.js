@@ -10,7 +10,9 @@ const state = {
   model: null,
   passcode: null,
   view: window.matchMedia('(max-width: 720px)').matches ? 'list' : 'week',
-  tzMode: 'owner',
+  // 'viewer' = the visitor's device timezone (automatic), 'owner' = wherever the
+  // owner is today, or any explicit IANA zone the visitor picked.
+  tzMode: 'viewer',
   anchor: null,
 };
 
@@ -45,7 +47,37 @@ function addDays(key, n) {
 }
 const keyToUtcNoon = (key) => new Date(`${key}T12:00:00Z`);
 const weekdayIdx = (key) => (keyToUtcNoon(key).getUTCDay() + 6) % 7; // Mon=0
-const displayTz = () => (state.tzMode === 'owner' ? state.model.owner.timezone : VIEWER_TZ);
+function displayTz() {
+  if (state.tzMode === 'viewer') return VIEWER_TZ;
+  if (state.tzMode === 'owner') return ownerTzNow();
+  return state.tzMode;
+}
+/** The owner's timezone right now — follows them when they travel. */
+function ownerTzNow() {
+  const m = state.model;
+  return state.dayMap.get(keyIn(new Date(), m.owner.timezone))?.tz || m.owner.timezone;
+}
+function ownerPlaceNow() {
+  const m = state.model;
+  const tz = ownerTzNow();
+  const day = state.dayMap.get(keyIn(new Date(), m.owner.timezone));
+  if (tz === m.owner.timezone) return m.owner.homeCity || cityOf(tz);
+  return day?.place || null; // city withheld (came from a busy-only calendar)
+}
+function gmtLabel(tz, at = new Date()) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(at).find((p) => p.type === 'timeZoneName').value;
+  } catch {
+    return '';
+  }
+}
+function diffLabel(ownerTz) {
+  const diffMin = (offsetAt(new Date(), ownerTz) - offsetAt(new Date(), VIEWER_TZ)) / 60000;
+  if (diffMin === 0) return 'same time as you';
+  const h = Math.abs(diffMin) / 60;
+  const txt = Number.isInteger(h) ? `${h}h` : `${Math.floor(h)}h ${Math.abs(diffMin) % 60}m`;
+  return `${txt} ${diffMin > 0 ? 'ahead of' : 'behind'} you`;
+}
 
 function fmtTime(date, tz = displayTz()) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(date);
@@ -58,6 +90,40 @@ function cityOf(tz) {
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+/* ---------- Telegram Mini App ---------- */
+// When opened from a Telegram bot, Telegram appends #tgWebAppData=… to the URL.
+let tg = null;
+async function initTelegram() {
+  const inTelegram = /tgWebApp/.test(location.hash) || /[?&]tg=1/.test(location.search) || 'TelegramWebviewProxy' in window;
+  if (!inTelegram) return;
+  await new Promise((resolve) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://telegram.org/js/telegram-web-app.js';
+    sc.onload = sc.onerror = resolve;
+    document.head.appendChild(sc);
+  });
+  tg = window.Telegram?.WebApp || null;
+  if (!tg) return;
+  tg.ready();
+  tg.expand();
+  document.documentElement.classList.add('tg');
+  const applyTheme = () => {
+    const t = tg.themeParams || {};
+    const root = document.documentElement.style;
+    const set = (v, c) => c && root.setProperty(v, c);
+    set('--bg', t.secondary_bg_color || t.bg_color);
+    set('--surface', t.bg_color);
+    set('--surface-2', t.secondary_bg_color);
+    set('--text', t.text_color);
+    set('--muted', t.hint_color);
+    set('--line', t.section_separator_color || (t.hint_color ? `color-mix(in srgb, ${t.hint_color} 30%, transparent)` : null));
+    set('--accent', t.button_color);
+    set('--event', t.link_color || t.button_color);
+  };
+  applyTheme();
+  tg.onEvent?.('themeChanged', applyTheme);
+}
 
 /* ---------- data loading ---------- */
 async function decrypt(payload, passcode) {
@@ -85,6 +151,7 @@ function load(key) {
 }
 
 async function boot() {
+  await initTelegram();
   try {
     const prefs = JSON.parse(load(PREFS_KEY) || '{}');
     if (prefs.view) state.view = prefs.view;
@@ -153,11 +220,11 @@ function wireControls() {
   $('today').onclick = () => { state.anchor = keyIn(new Date(), displayTz()); render(); };
   document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { state.view = b.dataset.view; savePrefs(); render(); }));
 
-  const differentTz = offsetAt(new Date(), VIEWER_TZ) !== offsetAt(new Date(), m.owner.timezone);
-  $('tz-seg').hidden = !differentTz;
-  if (!differentTz) state.tzMode = 'owner';
-  $('tz-owner').textContent = `${m.owner.name}’s time`;
-  document.querySelectorAll('[data-tz]').forEach((b) => (b.onclick = () => { state.tzMode = b.dataset.tz; savePrefs(); render(); }));
+  $('tz-select').onchange = (e) => {
+    state.tzMode = e.target.value;
+    savePrefs();
+    render();
+  };
 
   if (m.feed) {
     const url = new URL(m.feed, location.href);
@@ -166,6 +233,12 @@ function wireControls() {
     $('sub-url').value = url.href;
     $('sub-google').href = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
     $('sub-apple').href = webcal;
+    if (tg) {
+      // Telegram's in-app browser can't open webcal:// or new tabs itself.
+      for (const [id, href] of [['sub-google', $('sub-google').href], ['sub-apple', url.href]]) {
+        $(id).onclick = (e) => { e.preventDefault(); tg.openLink(href); };
+      }
+    }
     $('subscribe').onclick = () => $('sub-dialog').showModal();
     $('sub-copy').onclick = async () => {
       try { await navigator.clipboard.writeText(url.href); $('sub-copy').textContent = 'Copied!'; }
@@ -173,6 +246,22 @@ function wireControls() {
       setTimeout(() => ($('sub-copy').textContent = 'Copy'), 1500);
     };
   }
+}
+
+/** Timezone picker: visitor's own (auto-detected), owner's current, or any zone. */
+function buildTzSelect() {
+  const m = state.model;
+  const sel = $('tz-select');
+  const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
+  if (!zones.includes(VIEWER_TZ)) zones.push(VIEWER_TZ);
+  if (state.tzMode !== 'viewer' && state.tzMode !== 'owner' && !zones.includes(state.tzMode)) state.tzMode = 'viewer';
+  const place = ownerPlaceNow();
+  const ownerTz = ownerTzNow();
+  const opt = (value, label) => `<option value="${esc(value)}"${value === state.tzMode ? ' selected' : ''}>${esc(label)}</option>`;
+  sel.innerHTML =
+    opt('viewer', `📍 My time · ${cityOf(VIEWER_TZ)} (${gmtLabel(VIEWER_TZ)})`) +
+    opt('owner', `🧳 ${m.owner.name}’s time · ${place || gmtLabel(ownerTz)}`) +
+    `<optgroup label="Other timezones">${zones.map((z) => opt(z, `${z.replace(/_/g, ' ')} (${gmtLabel(z)})`)).join('')}</optgroup>`;
 }
 
 function savePrefs() {
@@ -187,13 +276,13 @@ function shift(dir) {
 /* ---------- rendering ---------- */
 function render() {
   const m = state.model;
+  buildTzSelect();
   $('title').textContent = `${m.owner.name}’s calendar`;
   $('tagline').textContent = m.owner.tagline;
   $('avatar').textContent = m.owner.name.slice(0, 1).toUpperCase();
   const mins = Math.round((Date.now() - new Date(m.generatedAt)) / 60000);
   $('updated').textContent = `Updated ${mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)} h ago`}`;
   document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
-  document.querySelectorAll('[data-tz]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tz === state.tzMode)));
 
   $('legend').innerHTML =
     Object.values(m.statuses).map((s) => `<span><i class="swatch" style="background:${esc(s.color)}"></i>${esc(s.emoji)} ${esc(s.label)}</span>`).join('') +
@@ -215,10 +304,18 @@ function chip(dateKey, { showNone = true } = {}) {
   const s = statusOf(dateKey);
   if (!s) {
     if (!showNone) return '';
-    return `<div class="status-chip none">${state.dayMap.get(dateKey)?.work ? esc(state.model.workingLabel) : 'Free day'}</div>`;
+    return `<div class="status-chip none">${state.dayMap.get(dateKey)?.work ? esc(state.model.workingLabel) : 'Free day'}</div>${placeLine(dateKey)}`;
   }
   const label = `${s.short}${s.detail ? ` · ${s.detail}` : ''}`;
-  return `<div class="status-chip" style="--c:${esc(s.color)}" title="${esc(s.label)}${s.detail ? ` · ${esc(s.detail)}` : ''}">${esc(s.emoji)} ${esc(label)}</div>`;
+  return `<div class="status-chip" style="--c:${esc(s.color)}" title="${esc(s.label)}${s.detail ? ` · ${esc(s.detail)}` : ''}">${esc(s.emoji)} ${esc(label)}</div>${placeLine(dateKey, s.detail)}`;
+}
+
+/** "📍 Bali · GMT+8" under the chip when the owner is away from home that day. */
+function placeLine(dateKey, detail = '') {
+  const day = state.dayMap.get(dateKey);
+  if (!day || !day.tz || day.tz === state.model.owner.timezone) return '';
+  const name = day.place && day.place !== detail ? `${day.place} · ` : '';
+  return `<div class="place-line" title="${esc(state.model.owner.name)} is on ${esc(gmtLabel(day.tz, keyToUtcNoon(dateKey)))} time">📍 ${esc(name)}${esc(gmtLabel(day.tz, keyToUtcNoon(dateKey)))}</div>`;
 }
 
 /** All timed things (work blocks + events) as {start, end, kind, title, ...}. */
@@ -245,8 +342,9 @@ function itemLabel(it) {
 function renderNow() {
   const m = state.model;
   const now = new Date();
-  const ownerTz = m.owner.timezone;
-  const today = keyIn(now, ownerTz);
+  const homeTz = m.owner.timezone;
+  const ownerTz = ownerTzNow();
+  const today = keyIn(now, homeTz);
   const s = statusOf(today);
   const items = timedItems().filter((i) => !i.free);
   const current = items.filter((i) => i.start <= now && i.end > now);
@@ -263,7 +361,7 @@ function renderNow() {
       }
     }
   }
-  const nextUp = items.filter((i) => i.start > now && keyIn(i.start, ownerTz) === today).sort((a, b) => a.start - b.start)[0];
+  const nextUp = items.filter((i) => i.start > now && keyIn(i.start, ownerTz) === keyIn(now, ownerTz)).sort((a, b) => a.start - b.start)[0];
   const primary = current.find((i) => i.kind === 'event') || current.find((i) => i.kind === 'busy') || current[0];
   const tz = displayTz();
 
@@ -284,7 +382,7 @@ function renderNow() {
   el.innerHTML = `
     <div class="big-emoji" aria-hidden="true">${esc(s?.emoji || '🙂')}</div>
     <div class="headline">${esc(headline)}</div>
-    <div class="clock"><strong>${fmtTime(now, ownerTz)}</strong>${esc(m.owner.name)}’s time (${esc(cityOf(ownerTz))})</div>
+    <div class="clock"><strong>${fmtTime(now, ownerTz)}</strong>${esc(m.owner.name)} is in ${esc(ownerPlaceNow() || gmtLabel(ownerTz))}<span class="tzdiff">${esc(diffLabel(ownerTz))}</span></div>
     <div class="sub">${sub}</div>`;
 }
 

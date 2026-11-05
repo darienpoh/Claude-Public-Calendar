@@ -9,7 +9,8 @@ A shareable calendar for friends and family. It shows when you're free, blocks o
 - **Location status per day** comes from a default weekly pattern (for example Tue/Fri WFH) that you override by adding all-day events like `WFH`, `Office`, `Travel to Lisbon` or `Annual leave`. Outlook out-of-office events are picked up automatically.
 - **Personal events** show their titles. Add `#private` to an event to show it only as "Busy", or `#hide` to leave it out entirely.
 - **"Right now" card**: friends see at a glance whether you're free, and if not, until when.
-- **Timezone aware**: visitors can switch between your time and their own.
+- **Follows you when you travel**: a `Travel to Tokyo` event moves that day's working hours to Tokyo time, and visitors see "Darien is in Tokyo · 1h ahead of you".
+- **Every visitor sees their own timezone automatically**, detected from their device. No location permission is needed. They can switch to your current time or any other timezone.
 - **Subscribe**: friends can add a cleaned-up `.ics` feed to Google, Apple or Outlook calendar.
 - **Optional passcode**: the data file is AES-encrypted, so it stays private on a public host.
 - Free to run: a static site rebuilt by GitHub Actions every 30 minutes. No server, no database. Your private calendar URLs never reach the browser.
@@ -45,7 +46,7 @@ Treat these URLs like passwords. They only ever go into GitHub Secrets or your l
 The most important settings:
 
 ```jsonc
-"owner": { "name": "Darien", "timezone": "Europe/London" },   // ← set your IANA timezone
+"owner": { "name": "Darien", "timezone": "Asia/Singapore", "homeCity": "Singapore" },  // your home base
 "workingHours": { "days": { "mon": ["09:00", "18:00"], ... } },
 "defaultLocation": { "mon": "office", "tue": "wfh", ... },      // your usual hybrid pattern
 ```
@@ -84,8 +85,46 @@ It also works on **Netlify / Cloudflare Pages / Vercel**: build command `npm run
 | A personal event as just "Busy" | Add `#private` to the title or description (or mark the event Private) |
 | A personal event hidden completely | Add `#hide` |
 | A work event with its title shown | Add `#public` |
+| Your timezone to follow you without changing your status (e.g. a month working remotely) | All-day event `📍 Bali` |
+| A destination it can't recognise | Add `#tz:Asia/Makassar` to the event, or add an alias to `places` in the config |
 
 Travel and holiday details (like "Tokyo") only appear when they come from a calendar with `titles` or `details` visibility, not from the busy-only work calendar.
+
+## Travel and timezones
+
+Your **home** timezone is `owner.timezone`. On days covered by a travel event, or a `📍 Place` event, the destination is matched to a timezone in this order:
+
+1. A `#tz:Area/City` tag in the event
+2. Your own `places` aliases in `calendar.config.json` (e.g. `"the cottage": "Europe/London"`)
+3. A built-in list of common cities and countries (SF, NYC, KL, Bali, HK, Sydney, NZ…)
+4. Any IANA timezone city name (Tokyo, Lisbon, Zurich…)
+
+That day's working hours then follow local time. A trip on your busy-only work calendar still moves your timezone, but the page shows just the offset (`GMT+9`), not the city.
+
+Visitors see times in **their own** timezone by default, detected from their device. The dropdown switches to *your current time* or any other zone.
+
+## Sharing it: the easiest options
+
+Everything starts with the hosted link from step 3 (GitHub Pages). Every option below reuses that link, so there's only one thing to maintain.
+
+| Option | Effort | What people get |
+|---|---|---|
+| **Just send the link** | none | Works in any browser. On a phone, "Add to Home Screen" gives it an app icon. |
+| **Telegram Mini App** | ~3 min | An "Open calendar" button inside a Telegram bot chat that opens the calendar full screen, in Telegram's theme. |
+| **Notion embed** | ~30 s | The live calendar inside a Notion page. |
+| **Subscribe feed** | none | Your schedule appears inside their own Google, Apple or Outlook calendar. |
+
+### Telegram Mini App (no server needed)
+
+1. In Telegram, message **@BotFather** → `/newbot` → choose a name and username (e.g. `darien_schedule_bot`).
+2. `/mybots` → your bot → **Bot Settings → Menu Button → Configure menu button** → paste your site URL → button text `📅 Calendar`.
+3. Optionally, `/newapp` → choose the bot → same URL. This gives a direct link like `t.me/darien_schedule_bot/calendar` that you can pin in family group chats.
+
+The page detects Telegram, uses its light/dark theme, and opens subscribe links properly. The bot doesn't need any code. A bot that *replies* to messages, like `/now` → "Darien is free until 3pm", needs a small always-on service, such as a free Cloudflare Worker that reads `data.json`.
+
+### Notion
+
+In any Notion page, type `/embed` → paste the site URL → resize. It stays live because it is the same page. If you use a passcode, the "remember me" option may not persist inside Notion's frame, so visitors may need to re-enter it.
 
 ## If your work calendar can't be published
 
