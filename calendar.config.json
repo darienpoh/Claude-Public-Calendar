@@ -124,5 +124,21 @@
     "hideTag": "#hide",
     "publicTag": "#public",
     "busyLabel": "Busy"
+  },
+  "syncBack": {
+    "enabled": false,
+    "provider": "google",
+    "calendarId": "primary",
+    "fromSources": [
+      "personal"
+    ],
+    "mode": "workingHours",
+    "blockTag": "#block",
+    "skipTag": "#noblock",
+    "title": "Personal commitment",
+    "copyTitle": false,
+    "includeAllDay": false,
+    "bufferMinutes": 15,
+    "lookaheadDays": 30
   }
 }

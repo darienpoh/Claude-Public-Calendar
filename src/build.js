@@ -13,6 +13,8 @@ import { buildModel } from './model.js';
 import { writeIcs } from './ics-writer.js';
 import { encryptJson } from './crypto.js';
 import { addDays, dateKeyInZone, zonedTimeToUtc } from './time.js';
+import { desiredBlocks, dropMirroredBlocks, runSyncBack, syncSettings } from './sync-back.js';
+import { getAccessToken, googleCalendar } from './google.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -54,7 +56,36 @@ for (const src of config.sources) {
 }
 if (loaded === 0) console.warn('No calendar sources loaded — the site will only show working hours and defaults.');
 
-const model = buildModel({ config, events, today, now });
+const model = buildModel({ config, events: dropMirroredBlocks(events, config), today, now });
+
+// Sync-back: block personal commitments in the work calendar.
+const sync = syncSettings(config);
+const wantSync = args.has('--sync-back') || process.env.SYNC_BACK === '1';
+const dryRun = args.has('--dry-run');
+if (wantSync || dryRun) {
+  if (!sync.enabled) {
+    console.log('[sync-back] disabled in calendar.config.json (syncBack.enabled) — skipping');
+  } else if (sample && !dryRun) {
+    console.log('[sync-back] refusing to write sample data to a real calendar (use --dry-run)');
+  } else {
+    const desired = desiredBlocks({ events, days: model.days, config, now });
+    const creds = { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, refreshToken: process.env.GOOGLE_REFRESH_TOKEN };
+    if (!creds.clientId || !creds.clientSecret || !creds.refreshToken) {
+      console.log(`[sync-back] ${desired.length} personal blocks would be synced, but GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN aren't set — skipping`);
+    } else if (loaded < config.sources.length) {
+      // A missing personal feed would otherwise look like "delete every block".
+      console.log('[sync-back] not every calendar loaded — skipping this run to avoid deleting blocks by mistake');
+    } else {
+      try {
+        const accessToken = await getAccessToken(creds);
+        await runSyncBack({ client: googleCalendar({ accessToken, calendarId: process.env.WORK_CALENDAR_ID || sync.calendarId }), desired, config, now, dryRun });
+      } catch (err) {
+        // Don't block publishing the site because of a sync problem.
+        console.log(`::warning::[sync-back] ${err.message}`);
+      }
+    }
+  }
+}
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });

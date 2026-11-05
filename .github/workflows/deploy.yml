@@ -27,13 +27,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Build site from calendars
-        run: npm run build
+      - name: Build site from calendars (and sync personal blocks back to work calendar)
+        run: npm run build -- --sync-back
         env:
           WORK_ICS_URL: ${{ secrets.WORK_ICS_URL }}
           PERSONAL_ICS_URL: ${{ secrets.PERSONAL_ICS_URL }}
           CALENDAR_PASSCODE: ${{ secrets.CALENDAR_PASSCODE }}
           FEED_TOKEN: ${{ secrets.FEED_TOKEN }}
+          # Optional — only used when syncBack.enabled is true in calendar.config.json
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          WORK_CALENDAR_ID: ${{ secrets.WORK_CALENDAR_ID }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

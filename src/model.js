@@ -12,7 +12,12 @@ export function buildModel({ config, events, today, now = new Date() }) {
   const endKey = addDays(today, config.window?.futureDays ?? 90);
   const days = dateRange(startKey, endKey);
   const sources = new Map(config.sources.map((s) => [s.id, s]));
-  const privacy = { busyLabel: 'Busy', ...config.privacy };
+  const privacy = {
+    busyLabel: 'Busy',
+    blockTag: config.syncBack?.blockTag ?? '#block',
+    noBlockTag: config.syncBack?.skipTag ?? '#noblock',
+    ...config.privacy,
+  };
   const rules = (config.statusRules || []).map((r) => ({
     ...r,
     re: r.match ? new RegExp(r.match, 'iu') : null,
@@ -193,7 +198,7 @@ function cityName(tz) {
 
 function stripTags(s, privacy) {
   let t = stripTzTag(s);
-  for (const tag of [privacy.privateTag, privacy.publicTag, privacy.hideTag]) {
+  for (const tag of [privacy.privateTag, privacy.publicTag, privacy.hideTag, privacy.blockTag, privacy.noBlockTag]) {
     if (tag) t = t.split(tag).join('');
   }
   return t.replace(/\s{2,}/g, ' ').trim();

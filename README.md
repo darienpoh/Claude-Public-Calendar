@@ -85,10 +85,53 @@ It also works on **Netlify / Cloudflare Pages / Vercel**: build command `npm run
 | A personal event as just "Busy" | Add `#private` to the title or description (or mark the event Private) |
 | A personal event hidden completely | Add `#hide` |
 | A work event with its title shown | Add `#public` |
+| A personal event blocked in your work calendar (with sync-back on) | Add `#block`; use `#noblock` to opt out |
 | Your timezone to follow you without changing your status (e.g. a month working remotely) | All-day event `📍 Bali` |
 | A destination it can't recognise | Add `#tz:Asia/Makassar` to the event, or add an alias to `places` in the config |
 
 Travel and holiday details (like "Tokyo") only appear when they come from a calendar with `titles` or `details` visibility, not from the busy-only work calendar.
+
+## Sync-back: block personal time in your work calendar
+
+Colleagues book you from your **work** calendar, which can't see your personal plans. Sync-back copies your personal commitments into the work calendar as **private** blocks, titled "Personal commitment" by default, so nobody books over your dentist appointment or school run.
+
+What gets blocked (`syncBack.mode`):
+
+| Mode | Blocks |
+|---|---|
+| `workingHours` (default) | Personal events that overlap your working hours, which is when people could book you |
+| `tagged` | Only events with `#block` in the title or description |
+| `all` | Every timed personal event |
+
+- `#block` on any event always blocks it, even outside working hours. `#noblock` never blocks it.
+- `bufferMinutes` (default 15) pads each block for travel time.
+- `copyTitle: false` (default) keeps the real title out of your work calendar. Blocks are marked **private** either way, so colleagues only see "busy".
+- `includeAllDay: true` also blocks all-day personal events like `Holiday - Langkawi`. Status markers such as `WFH`, `Travel to …` and `📍 …` are never blocked.
+- It only manages the next `lookaheadDays` (30) days. When you move or delete the personal event, the block moves or disappears on the next run.
+
+**Safety**
+- It only ever edits or deletes events it created itself (tagged with a hidden marker). Your real work meetings are never touched.
+- It skips a run if any calendar fails to load, so a temporary outage can't wipe your blocks.
+- Logs show counts only, never titles, because Actions logs on a public repo are public.
+
+### Set up (Google Workspace / Gmail work calendar, ~10 minutes, once)
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) **signed in with your work account** and create a project, e.g. "Personal calendar sync".
+2. **APIs & Services → Library →** enable **Google Calendar API**.
+3. **APIs & Services → OAuth consent screen →** User type **Internal**. This is available on Google Workspace accounts like synthesys.co: no Google review is needed and tokens don't expire. Add the scope `.../auth/calendar.events`.
+   *If you only see "External", publish the app to "In production". Apps left in "Testing" have their tokens expire every 7 days.*
+4. **Credentials → Create credentials → OAuth client ID →** Application type **Desktop app**. Copy the client ID and secret.
+5. On your computer:
+   ```bash
+   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... npm run google:auth
+   ```
+   Open the link, sign in with your **work** account and approve. The terminal then prints a refresh token.
+6. Add GitHub secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Add `WORK_CALENDAR_ID` too if it isn't the account's primary calendar.
+7. Set `"syncBack": { "enabled": true, ... }` in `calendar.config.json` and push.
+
+To preview without writing anything, add the same values to `.env` and run `npm run sync-back:dry-run`.
+
+> Outlook / Microsoft 365 work calendars need Microsoft Graph instead. That isn't built yet; ask if you need it.
 
 ## Travel and timezones
 
@@ -148,6 +191,9 @@ src/ics-reader.js      ICS parsing + recurrence expansion (node-ical)
 src/model.js           privacy rules, day status, working-hours blocks
 src/ics-writer.js      subscribable feed
 src/crypto.js          optional passcode encryption
+src/sync-back.js       mirror personal commitments into the work calendar
+src/google.js          tiny Google Calendar API client
+scripts/google-auth.js one-time sign-in to get a refresh token
 public/                the web app (vanilla HTML/CSS/JS, no build step)
 fixtures/              sample calendars for `npm run dev`
 test/                  node:test suite
