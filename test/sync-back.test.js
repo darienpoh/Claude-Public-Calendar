@@ -35,7 +35,7 @@ test('workingHours mode blocks only personal events that clash with work hours',
   ];
   const blocks = want(events);
   assert.deepEqual(blocks.map((b) => b.start), ['2026-11-05T13:00:00.000Z', '2026-11-06T07:00:00.000Z']);
-  assert.ok(blocks.every((b) => b.summary === 'Personal commitment'));
+  assert.ok(blocks.every((b) => b.summary === 'Busy'));
 });
 
 test('titles are not copied unless copyTitle is on; tags are stripped', () => {
@@ -66,10 +66,10 @@ test('all-day: status markers never block; holidays block when includeAllDay', (
 
 test('planSync inserts, updates, deletes — and only touches its own events', () => {
   const desired = [
-    { key: 'a', allDay: false, start: '2026-11-05T13:00:00.000Z', end: '2026-11-05T14:00:00.000Z', summary: 'Personal commitment' },
-    { key: 'b', allDay: false, start: '2026-11-06T13:00:00.000Z', end: '2026-11-06T14:00:00.000Z', summary: 'Personal commitment' },
+    { key: 'a', allDay: false, start: '2026-11-05T13:00:00.000Z', end: '2026-11-05T14:00:00.000Z', summary: 'Busy' },
+    { key: 'b', allDay: false, start: '2026-11-06T13:00:00.000Z', end: '2026-11-06T14:00:00.000Z', summary: 'Busy' },
   ];
-  const own = (id, key, start, end) => ({ id, summary: 'Personal commitment', start: { dateTime: start }, end: { dateTime: end }, extendedProperties: { private: { publicCalendarSync: '1', pcKey: key } } });
+  const own = (id, key, start, end) => ({ id, summary: 'Busy', start: { dateTime: start }, end: { dateTime: end }, extendedProperties: { private: { publicCalendarSync: '1', pcKey: key } } });
   const existing = [
     own('g1', 'a', '2026-11-05T13:00:00Z', '2026-11-05T14:00:00Z'), // unchanged
     own('g2', 'b', '2026-11-06T12:00:00Z', '2026-11-06T14:00:00Z'), // moved → update
@@ -100,7 +100,7 @@ test('runSyncBack writes private, reminder-free blocks via the Google API', asyn
   const insert = calls.find((c) => c.method === 'POST');
   assert.ok(insert.url.includes(encodeURIComponent('me@work.com')));
   assert.equal(insert.body.visibility, 'private');
-  assert.equal(insert.body.summary, 'Personal commitment');
+  assert.equal(insert.body.summary, 'Busy');
   assert.deepEqual(insert.body.reminders, { useDefault: false, overrides: [] });
   assert.equal(insert.body.extendedProperties.private.publicCalendarSync, '1');
   assert.ok(calls.some((c) => c.method === 'DELETE' && c.url.endsWith('/stale')));
@@ -117,10 +117,17 @@ test('dry run writes nothing', async () => {
 
 test('mirrored blocks in the work feed are not double-counted on the public page', () => {
   const personal = ev('Dentist', '2026-11-05T13:00:00Z', '2026-11-05T14:00:00Z');
-  const mirror = { ...ev('Personal commitment', '2026-11-05T13:00:00Z', '2026-11-05T14:00:00Z'), sourceId: 'work', uid: 'x' };
+  const mirror = { ...ev('Busy', '2026-11-05T13:00:00Z', '2026-11-05T14:00:00Z'), sourceId: 'work', uid: 'x' };
   const realMeeting = { ...ev('Board meeting', '2026-11-05T19:00:00Z', '2026-11-05T20:00:00Z'), sourceId: 'work', uid: 'y' };
   const kept = dropMirroredBlocks([personal, mirror, realMeeting], config);
   assert.deepEqual(kept.map((e) => e.summary), ['Dentist', 'Board meeting']);
+});
+
+test('real work events called "Busy" (e.g. Outlook free/busy feeds) are never dropped', () => {
+  const personal = ev('Dentist', '2026-11-05T13:00:00Z', '2026-11-05T14:00:00Z');
+  const realBusy = { ...ev('Busy', '2026-11-05T15:00:00Z', '2026-11-05T16:00:00Z'), sourceId: 'work', uid: 'z' };
+  const kept = dropMirroredBlocks([personal, realBusy], config);
+  assert.equal(kept.length, 2);
 });
 
 test('#block tag is removed from public titles', () => {

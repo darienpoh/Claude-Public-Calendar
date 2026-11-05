@@ -93,7 +93,7 @@ Travel and holiday details (like "Tokyo") only appear when they come from a cale
 
 ## Sync-back: block personal time in your work calendar
 
-Colleagues book you from your **work** calendar, which can't see your personal plans. Sync-back copies your personal commitments into the work calendar as **private** blocks, titled "Personal commitment" by default, so nobody books over your dentist appointment or school run.
+Colleagues book you from your **work** calendar, which can't see your personal plans. Sync-back copies your personal commitments into the work calendar as **private** blocks, titled just **"Busy"** by default, so nobody books over your dentist appointment or school run.
 
 What gets blocked (`syncBack.mode`):
 

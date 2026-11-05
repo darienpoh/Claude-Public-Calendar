@@ -135,7 +135,7 @@
     "mode": "workingHours",
     "blockTag": "#block",
     "skipTag": "#noblock",
-    "title": "Personal commitment",
+    "title": "Busy",
     "copyTitle": false,
     "includeAllDay": false,
     "bufferMinutes": 15,

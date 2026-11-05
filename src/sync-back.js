@@ -19,7 +19,7 @@ export const SYNC_DEFAULTS = {
   mode: 'workingHours', // 'workingHours' | 'tagged' | 'all'
   blockTag: '#block',
   skipTag: '#noblock',
-  title: 'Personal commitment',
+  title: 'Busy',
   copyTitle: false,
   includeAllDay: false,
   bufferMinutes: 0,
@@ -148,6 +148,8 @@ export async function runSyncBack({ client, desired, config, now = new Date(), d
 /**
  * The work calendar feed will contain the blocks we created. Drop them when
  * building the public page so personal events don't also show as work "Busy".
+ * Matched on exact start/end only — never on title, because the block title
+ * ("Busy") is also what busy-only work feeds call every real meeting.
  */
 export function dropMirroredBlocks(events, config) {
   const s = syncSettings(config);
@@ -160,7 +162,6 @@ export function dropMirroredBlocks(events, config) {
   );
   return events.filter((e) => {
     if (s.fromSources.includes(e.sourceId)) return true;
-    if (!s.copyTitle && e.summary === s.title) return false;
     if (!e.allDay && personal.has(`${e.start.getTime()}|${e.end.getTime()}`)) return false;
     return true;
   });
