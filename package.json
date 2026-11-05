@@ -1,0 +1,18 @@
+{
+  "name": "public-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A shareable personal calendar that syncs your work calendar as busy blocks and shows whether you're WFH, in the office or travelling.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node src/build.js",
+    "build:sample": "node src/build.js --sample",
+    "dev": "node src/build.js --sample && node scripts/serve.js",
+    "serve": "node scripts/serve.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "node-ical": "0.27.3"
+  }
+}

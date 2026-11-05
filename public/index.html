@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>My Schedule</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="lock" class="lock" hidden>
+    <form id="lock-form" class="lock-card">
+      <div class="lock-icon" aria-hidden="true">🔒</div>
+      <h1>This calendar is private</h1>
+      <p>Enter the passcode you were given to see the schedule.</p>
+      <input id="lock-input" type="password" autocomplete="current-password" placeholder="Passcode" required aria-label="Passcode">
+      <label class="remember"><input id="lock-remember" type="checkbox" checked> Remember on this device</label>
+      <button type="submit">Unlock</button>
+      <p id="lock-error" class="lock-error" role="alert"></p>
+    </form>
+  </div>
+
+  <div id="app" class="app" hidden>
+    <header class="top">
+      <div class="who">
+        <div id="avatar" class="avatar" aria-hidden="true"></div>
+        <div>
+          <h1 id="title"></h1>
+          <p id="tagline" class="tagline"></p>
+        </div>
+      </div>
+      <p id="updated" class="updated"></p>
+    </header>
+
+    <section id="now" class="now" aria-live="polite"></section>
+
+    <nav class="toolbar" aria-label="Calendar controls">
+      <div class="nav-group">
+        <button id="prev" class="icon-btn" aria-label="Previous">‹</button>
+        <button id="today" class="btn">Today</button>
+        <button id="next" class="icon-btn" aria-label="Next">›</button>
+        <h2 id="range-label" class="range-label"></h2>
+      </div>
+      <div class="nav-group">
+        <div class="seg" role="group" aria-label="View">
+          <button data-view="week" class="seg-btn">Week</button>
+          <button data-view="list" class="seg-btn">List</button>
+        </div>
+        <div id="tz-seg" class="seg" role="group" aria-label="Timezone" hidden>
+          <button data-tz="owner" class="seg-btn" id="tz-owner"></button>
+          <button data-tz="viewer" class="seg-btn">My time</button>
+        </div>
+        <button id="subscribe" class="btn" hidden>Subscribe</button>
+      </div>
+    </nav>
+
+    <div id="legend" class="legend"></div>
+    <main id="view"></main>
+
+    <dialog id="sub-dialog" class="dialog">
+      <form method="dialog">
+        <h3>Add this calendar to yours</h3>
+        <p>Subscribe and it stays up to date automatically.</p>
+        <div class="sub-row">
+          <input id="sub-url" readonly aria-label="Calendar feed URL">
+          <button type="button" id="sub-copy" class="btn">Copy</button>
+        </div>
+        <div class="sub-links">
+          <a id="sub-google" class="btn" target="_blank" rel="noopener">Google Calendar</a>
+          <a id="sub-apple" class="btn">Apple / Outlook</a>
+        </div>
+        <button class="btn close">Close</button>
+      </form>
+    </dialog>
+
+    <footer class="foot">Times without details are shown as “Busy” to keep work and private things private.</footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

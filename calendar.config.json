@@ -1,0 +1,123 @@
+{
+  "owner": {
+    "name": "Darien",
+    "timezone": "Europe/London",
+    "tagline": "Here's when I'm free, busy, or away. Message me to make plans!"
+  },
+  "window": {
+    "pastDays": 7,
+    "futureDays": 90
+  },
+  "workingHours": {
+    "label": "Working",
+    "days": {
+      "mon": [
+        "09:00",
+        "18:00"
+      ],
+      "tue": [
+        "09:00",
+        "18:00"
+      ],
+      "wed": [
+        "09:00",
+        "18:00"
+      ],
+      "thu": [
+        "09:00",
+        "18:00"
+      ],
+      "fri": [
+        "09:00",
+        "17:00"
+      ]
+    },
+    "hideWorkEventsInsideHours": true
+  },
+  "defaultLocation": {
+    "mon": "office",
+    "tue": "wfh",
+    "wed": "office",
+    "thu": "office",
+    "fri": "wfh"
+  },
+  "statuses": {
+    "office": {
+      "label": "In the office",
+      "short": "Office",
+      "emoji": "🏢",
+      "color": "#2563eb",
+      "priority": 10,
+      "working": true
+    },
+    "wfh": {
+      "label": "Working from home",
+      "short": "WFH",
+      "emoji": "🏠",
+      "color": "#16a34a",
+      "priority": 20,
+      "working": true
+    },
+    "ooo": {
+      "label": "Off / on holiday",
+      "short": "Off",
+      "emoji": "🌴",
+      "color": "#d97706",
+      "priority": 30,
+      "working": false
+    },
+    "travel": {
+      "label": "Travelling",
+      "short": "Travel",
+      "emoji": "✈️",
+      "color": "#9333ea",
+      "priority": 40,
+      "working": true
+    }
+  },
+  "statusRules": [
+    {
+      "status": "wfh",
+      "match": "^\\s*(?:🏠\\s*)?(?:wfh|work(?:ing)? from home|home)\\s*$"
+    },
+    {
+      "status": "office",
+      "match": "^\\s*(?:🏢\\s*)?(?:office|in office|in the office)\\s*$"
+    },
+    {
+      "status": "travel",
+      "match": "^\\s*(?:✈️|🛫|travel(?:ling)?\\b|trip\\b|flight\\b)\\s*(?:to\\b|:|-|–)?\\s*(?<detail>.*)$"
+    },
+    {
+      "status": "ooo",
+      "match": "^\\s*(?:🌴|ooo\\b|out of office\\b|holiday\\b|vacation\\b|annual leave\\b|pto\\b|day off\\b|public holiday\\b)\\s*(?::|-|–)?\\s*(?<detail>.*)$"
+    },
+    {
+      "status": "ooo",
+      "busyStatus": "OOF"
+    }
+  ],
+  "sources": [
+    {
+      "id": "work",
+      "label": "Work",
+      "urlEnv": "WORK_ICS_URL",
+      "sampleFile": "fixtures/work.ics",
+      "visibility": "busy",
+      "mergeBusy": true
+    },
+    {
+      "id": "personal",
+      "label": "Personal",
+      "urlEnv": "PERSONAL_ICS_URL",
+      "sampleFile": "fixtures/personal.ics",
+      "visibility": "titles"
+    }
+  ],
+  "privacy": {
+    "privateTag": "#private",
+    "hideTag": "#hide",
+    "publicTag": "#public",
+    "busyLabel": "Busy"
+  }
+}
